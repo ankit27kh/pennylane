@@ -22,7 +22,7 @@ from typing import Union
 
 import numpy as np
 
-import pennylane as qml
+from pennylane import math
 from pennylane.pytrees import register_pytree
 
 if util.find_spec("jax") is not None:
@@ -63,7 +63,7 @@ def _process(wires):
         # of considering the elements of iterables as wire labels.
         wires = [wires]
 
-    if qml.math.get_interface(wires) == "jax" and not qml.math.is_abstract(wires):
+    if math.get_interface(wires) == "jax" and not math.is_abstract(wires):
         wires = tuple(wires.tolist() if wires.ndim > 0 else (wires.item(),))
 
     try:
@@ -120,7 +120,7 @@ class Wires(Sequence):
     """
 
     def _flatten(self):
-        """Serialize Wires into a flattened representation according to the PyTree convension."""
+        """Serialize Wires into a flattened representation according to the PyTree convention."""
         return self._labels, ()
 
     @classmethod
@@ -129,6 +129,8 @@ class Wires(Sequence):
         return cls(data, _override=True)
 
     def __init__(self, wires, _override=False):
+        if wires is None:
+            raise TypeError("Must specify a set of wires. None is not a valid wire label.")
         if _override:
             self._labels = wires
         else:
@@ -216,6 +218,16 @@ class Wires(Sequence):
             ndarray: array representing Wires object
         """
         return np.array(self._labels)
+
+    def __jax_array__(self):
+        """Defines a JAX numpy array representation of the Wires object.
+
+        Returns:
+            JAX ndarray: array representing Wires object
+        """
+        if jax_available:
+            return jax.numpy.array(self._labels)
+        raise ModuleNotFoundError("JAX not found")  # pragma: no cover
 
     @property
     def labels(self):

@@ -57,14 +57,25 @@ class Molecule:
         normalize (bool): if True, the basis functions get normalized
         unit (str): unit of atomic coordinates. Available options are ``unit="bohr"`` and ``unit="angstrom"``.
 
+    .. note::
+        :class:`~.qchem.Molecule` is not currently compatible with :func:`~.qjit` and ``jax.jit``.
+
     **Example**
+
+    Import necessary modules:
+
+    >>> from pennylane import numpy as np
+    >>> from pennylane.qchem import Molecule
+
+    Define molecular symbols and geometry:
 
     >>> symbols  = ['H', 'H']
     >>> geometry = np.array([[0.0, 0.0, -0.694349],
-    >>>                      [0.0, 0.0,  0.694349]], requires_grad = True)
+    ...                      [0.0, 0.0,  0.694349]], requires_grad = True)
     >>> mol = Molecule(symbols, geometry)
     >>> print(mol.n_electrons)
     2
+
     """
 
     def __init__(
@@ -141,7 +152,16 @@ class Molecule:
                     for i, c in enumerate(coeff)
                 ]
 
-        if len(set(qml.math.get_deep_interface(x) for x in [coordinates, alpha, coeff])) > 1:
+        if (
+            len(
+                {
+                    qml.math.get_deep_interface(x)
+                    for x in [coordinates, alpha, coeff]
+                    if qml.math.get_deep_interface(x) != "numpy"
+                }
+            )
+            > 1
+        ):
             warnings.warn(
                 "The parameters coordinates, coeff, and alpha are not of the same interface. Please use the same interface for all 3 or there may be unintended behavior.",
                 UserWarning,

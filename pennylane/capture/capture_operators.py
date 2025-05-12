@@ -15,16 +15,28 @@
 This submodule defines the abstract classes and primitives for capturing operators.
 """
 
+import importlib.metadata as importlib_metadata
+import warnings
 from functools import lru_cache
 from typing import Optional, Type
 
-import pennylane as qml
+from packaging.version import Version
 
-from .capture_diff import create_non_interpreted_prim
+import pennylane as qml
 
 has_jax = True
 try:
     import jax
+
+    jax_version = importlib_metadata.version("jax")
+    if Version(jax_version) > Version("0.4.28"):  # pragma: no cover
+        warnings.warn(
+            f"PennyLane is not yet compatible with JAX versions > 0.4.28. "
+            f"You have version {jax_version} installed. "
+            f"Please downgrade JAX to <=0.4.28 to avoid runtime errors.",
+            RuntimeWarning,
+        )
+
 except ImportError:
     has_jax = False
 
@@ -103,7 +115,10 @@ def create_operator_primitive(
     if not has_jax:
         return None
 
-    primitive = create_non_interpreted_prim()(operator_type.__name__)
+    from .custom_primitives import NonInterpPrimitive  # pylint: disable=import-outside-toplevel
+
+    primitive = NonInterpPrimitive(operator_type.__name__)
+    primitive.prim_type = "operator"
 
     @primitive.def_impl
     def _(*args, **kwargs):
@@ -115,9 +130,9 @@ def create_operator_primitive(
         # need to convert array values into integers
         # for plxpr, all wires must be integers
         # could be abstract when using tracing evaluation in interpreter
-        wires = tuple(w if qml.math.is_abstract(w) else int(w) for w in args[split:])
-        args = args[:split]
-        return type.__call__(operator_type, *args, wires=wires, **kwargs)
+        wire_args = args[split:] if split else ()
+        wires = tuple(w if qml.math.is_abstract(w) else int(w) for w in wire_args)
+        return type.__call__(operator_type, *args[:split], wires=wires, **kwargs)
 
     abstract_type = _get_abstract_operator()
 
